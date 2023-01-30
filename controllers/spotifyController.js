@@ -1,8 +1,13 @@
-//const User = require('../models/user);
 const querystring = require('querystring');
-//const axios = require('axios');
+const request = require('request');
 const jwt = require('jsonwebtoken');
-//const router = express.Router();
+const axios = require("axios");
+var SpotifyWebApi = require('spotify-web-api-node');
+const { reset } = require('nodemon');
+
+require('dotenv').config();
+const auth_token = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`, 'utf-8').toString('base64');
+
 
 function todaysDate() {
     let currentTime = new Date()
@@ -42,8 +47,102 @@ const scopes = [
     'user-follow-modify'
 ];
 
-module.exports = {
- login(req, res) {
+module.exports = { searchTracks, hello1, login, callback, refresh, getSingleUser, getTracks, getAlbums, getSingleAlbum, getPlaylists, getSinglePlaylist };
+
+const getAuth = async () => {
+    try{
+      //make post request to SPOTIFY API for access token, sending relavent info
+      const token_url = 'https://accounts.spotify.com/api/token';
+      const data = querystring.stringify({'grant_type':'client_credentials'});
+  
+      const response = await axios.post(token_url, data, {
+        headers: { 
+          'Authorization': `Basic ${auth_token}`,
+          'Content-Type': 'application/x-www-form-urlencoded' 
+        }
+      })
+      //return access token
+      return response.data.access_token;
+      //console.log(response.data.access_token);   
+    }catch(error){
+      //on fail, log the error in console
+      console.log(error);
+    }
+  }
+
+async function helloworld(req, res) {
+    const access_token = await getAuth(); 
+    console.log(access_token);
+    let auth_token = "BQBEdaKyGWinr5Oqg0HpE22KlybRBWVKJ8IfNImCqZTxuytPLHuG22gYaKzXKx0Tc4M4_Wh9gnoJ7K3MrAIxT3QmzUNudgRhoyMuG9A1Ihl6y4bjy8GK";
+    let resultData = {};
+    try {
+        const url = `https://api.spotify.com/v1/me`;
+        
+        const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + auth_token 
+        };
+
+        const response = await axios.get(url, {
+            headers: headers,
+        });
+        res.send(response.data);
+      } catch (error) {
+        console.log(error);
+      }
+
+}
+
+// WORKING FUNCTION
+async function hello1(req, res){
+    const access_token = await getAuth(); 
+    var spotifyApi = new SpotifyWebApi();
+
+    spotifyApi.setAccessToken(access_token);
+
+    if(req.params.artistName === ''){
+        res.error();
+    }
+
+    console.log(req.params);
+
+      spotifyApi.searchArtists(req.params.artistName)
+      .then(function(data) {
+        console.log('Search artists by "Love"', data.body);
+       console.log(data.body.artists.items);
+       res.send(data.body.artists);
+      }, function(err) {
+        console.error(err);
+      });
+}
+
+async function searchTracks(req, res){
+    const access_token = await getAuth(); 
+    var spotifyApi = new SpotifyWebApi();
+
+    spotifyApi.setAccessToken(access_token);
+
+    if(req.params.id === ''){
+        res.error();
+    }
+
+    console.log(req.params);
+
+      spotifyApi.searchTracks(req.params.id)
+      .then(function(data) {
+        console.log('Search tracks by "Love"', data.body);
+       console.log(data.body.artists.items);
+       res.send(data.body.artists);
+      }, function(err) {
+        console.error(err);
+      });
+}
+
+
+
+function login(req, res) {
+    console.log ("***** LOGIN");
     res.redirect(`https://accounts.spotify.com/authorize?${querystring.stringify({
         response_type: 'code',
         client_id: process.env.SPOTIFY_CLIENT_ID,
@@ -51,9 +150,9 @@ module.exports = {
         redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
         state: req.params.id
     })}`);
- },
+ };
 
- callback(req, res) {
+ function callback(req, res) {
     const code = req.query.code;
     const id = req.query.state;
     const url = 'https://accounts.spotify.com/api/token';
@@ -82,9 +181,9 @@ module.exports = {
             res.redirect('/');
         })
     })
- },
+ };
 
- refresh(req, res) {
+ function refresh(req, res) {
     User.findById(req.params.id, (err, user) => {
         if (user.tokenExpiration - Date.now() < 0 ) {
             const refresh_token = user.spotifyRefresh;
@@ -113,9 +212,9 @@ module.exports = {
             return res.send({user})
         }
     })
- },
+ };
 
- getSingleUser(req, res) {
+ function getSingleUser(req, res) {
     User.findById(req.params.id, function(err, user) {
         const access_token = user.spotifyToken;
         const headers = {
@@ -138,9 +237,9 @@ module.exports = {
         }
         request(options, callback);        
     })
- },
+ };
 
- getTracks(req, res) {
+ function getTracks(req, res) {
     let tracks = [];
     User.findById(req.params.id, function(err, user) {
         const access_token = user.spotifyToken;
@@ -173,9 +272,9 @@ module.exports = {
         }
         request(options, callback);
     })
- },
+ };
 
- getAlbums(req, res) {
+function getAlbums(req, res) {
     let albums = [];
     User.findById(req.params.id, function(err, user) {
         const access_token = user.spotifyToken;
@@ -204,13 +303,16 @@ module.exports = {
         }
         request(options, callback);
     })
- },
+ };
 
- getSingleAlbum(req, res) {
+function getSingleAlbum(req, res) {
+    console.log("getSingleAlbum");
     let tracks = [];
     let album = {}
-    User.findById(req.params.id, function(err, user) {
-        const access_token = user.spotifyToken;
+    .UserfindById(req.params.id, function(err, user) {
+        //const access_token = user.spotifyToken;
+        const access_token = req.params.token;
+
         const headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -245,9 +347,9 @@ module.exports = {
         }
         request(options, callback);
     })
- },
+};
 
- getPlaylists(req, res) {
+function getPlaylists(req, res) {
     let playlists = [];
     User.findById(req.params.id, function(err, user) {
         const access_token = user.spotifyToken;
@@ -277,9 +379,9 @@ module.exports = {
         }
         request(options, callback);
     })
- },
+ };
 
- getSinglePlaylist(req, res) {
+ function getSinglePlaylist(req, res) {
     let tracks = [];
     let playlist = {}
     User.findById(req.params.id, function(err, user) {
@@ -316,6 +418,4 @@ module.exports = {
         }
         request(options, callback);
     })
- },
-
-}
+ };
